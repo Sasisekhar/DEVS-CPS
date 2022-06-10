@@ -9,3 +9,9 @@ Change the IP
 
 Current compatible board:-
  - NUCLEO-H743ZI2
+
+TO-DO
+- Document
+- Make functions dynamic
+- Platform independant
+- Send pings if and when necessary (decide when and what to send to keep the connection alive)
