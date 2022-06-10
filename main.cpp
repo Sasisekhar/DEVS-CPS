@@ -10,6 +10,8 @@
 #include "thread_network_data_lib.h"
 #include "us_ticker_api.h"
 #include <cstdint>
+#include <cstdio>
+#include <cstring>
 #include <ctime>
 
 namespace network{
@@ -21,6 +23,11 @@ namespace network{
 namespace dbug {
     nsapi_size_or_error_t result;
 }
+
+struct Message {
+    char topic[64];
+    char payload[64];
+} global;
 
 
 void networkInfo() {
@@ -74,25 +81,44 @@ void receive_response() {
         
     }
 
-    if(buffer[0] == 0x30) { //The received pacekt is a pblish packet (Assuming QoS is 0)
+    if(buffer[0] == 0x30) { //The received packet is a publish packet (Assuming QoS is 0)
 
         //Deconstructing the header
         uint8_t msgLen = buffer[1];
         uint16_t topicLen = (buffer[2] << 8) | buffer[3];
         uint16_t payloadLen = (buffer[4 + topicLen] << 8) | buffer[4 + topicLen + 1];
-    }
+        uint8_t topicHead = 4;
+        uint8_t payloadHead = topicHead + topicLen + 2;
 
-    printf("received %d bytes: ", dbug::result);
+        char tempBuff[64];
+        int index = 0;
 
-    for(int i = 0; i < dbug::result; i++) {
-        printf("0x%02X, ", (unsigned int) buffer[i]);
+        for(int i = topicHead; i < (topicHead + topicLen); i++) {
+            tempBuff[index++] = (char) buffer[i];
+        }
+        tempBuff[index] = '\0';
+        strcpy(global.topic,  (const char*) tempBuff);
+
+        index = 0;
+        for(int i = payloadHead; i < (payloadHead + payloadLen); i++) {
+            tempBuff[index++] = buffer[i];
+        }
+        tempBuff[index] = '\0';
+        strcpy(global.payload,  (const char*) tempBuff);
+
+        printf("Message: %s received on topic: %s\n", global.payload, global.topic);
+    } else {
+        printf("received %d bytes: ", dbug::result);
+        for(int i = 0; i < dbug::result; i++) {
+            printf("0x%02X, ", (unsigned int) buffer[i]);
+        }
+        printf("\n");
     }
-    printf("\n");
 }
 
 void publish() {
     
-    uint8_t buffer[] = {0x30, 0x0A, 0x00, 0x04, 'T', 'E', 'S', 'T', 0x00, 0x02, 'H', 'I'};
+    uint8_t buffer[] = {0x30, 0x12, 0x00, 0x04, 'T', 'E', 'S', 'T', 0x00, 0x0A, 'S', 'A', 'S', 'I', 'S', 'E', 'K', 'H', 'A', 'R'};
     nsapi_size_t bytes_to_send = sizeof(buffer);
     // printf("Size of packet is: %d\n", bytes_to_send);
     nsapi_size_or_error_t bytes_sent = 0;
