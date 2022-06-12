@@ -31,14 +31,19 @@ class MQTTclient {
         char _clientID[64];
         char _topic[64];
         char _payload[64];
-    } global;
+    } _global;
 
     public:
     MQTTclient(NetworkInterface*, SocketAddress);
+    ~MQTTclient();
     bool MQTTinit();
     bool connect(const char* username, const char* password, const char* clientID);
     bool connect(const char* clientID);
-
+    void receive_response();
+    bool publish(const char* topic, const char* message);
+    bool subscribe(const char* topic);
+    void ping();
+    bool disconnect();
 };
 
 #endif

@@ -35,6 +35,8 @@ void networkInfo(NetworkInterface *interface) {
 // main() runs in its own thread in the OS
 int main() {
 
+    DigitalIn button(BUTTON1);
+
     //Create a network interface and connect to the network
     NetworkInterface *interface = NetworkInterface::get_default_instance();
     interface->connect();
@@ -51,43 +53,31 @@ int main() {
         printf("MQTT initialization failed!");
         return 0;
     }
-
-
-    DigitalIn button(BUTTON1);   
-
-    printf("Connecting to the network...\r\n");
     
-    send_request();
-    receive_response();
+    client.connect("ARSLAB");
 
-    subscribe();
+    client.subscribe("TEST");
 
-    printf("Entering loop\n");
+    // printf("Entering loop\n");
 
     uint64_t startTime = 0;
-
-    network::socket.set_blocking(false);
 
     while (true) {
 
         if(arduino::millis() -  startTime > 5000) {
-            publish();
+            client.publish("TEST", "Hello");
             // ping();
             startTime = arduino::millis();
         }
 
-        receive_response();
+        client.receive_response();
 
         if(button) {
             break;
         }
     }
     
-
-    disconnect();
     printf("End\n");
-    network::socket.close();
-    network::interface->disconnect();
 
 
     return 0;
