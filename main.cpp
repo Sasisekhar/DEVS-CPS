@@ -1,5 +1,6 @@
 #include "MQTT.h"
 #include "DigitalIn.h"
+#include "ThisThread.h"
 #include "mbed.h"
 
 namespace arduino{
@@ -41,10 +42,11 @@ int main() {
     networkInfo(interface);
 
     SocketAddress address;
-    //resolve_hostname(interface, address, broker.hivemq.com);
+    // resolve_hostname(interface, address, "broker.hivemq.com");
     address.set_ip_address("134.117.52.253\0");
     address.set_port(1883);
 
+    //Working till here
     MQTTclient client(interface, address);
 
     if(!client.MQTTinit()) {
@@ -54,7 +56,7 @@ int main() {
     
     client.connect("ARSLAB");
 
-    client.subscribe("TEST");
+    client.subscribe("ARSLAB/Control");
 
     // printf("Entering loop\n");
 
@@ -63,20 +65,21 @@ int main() {
     while (true) {
 
         if(arduino::millis() -  startTime > 5000) {
-            client.publish("TEST", "Hello");
-            // ping();
+            client.publish("ARSLAB/Temperature", "23");
             startTime = arduino::millis();
         }
 
         client.receive_response();
 
         if(button) {
-            break;
+            client.ping(arduino::millis());
+            ThisThread::sleep_for(500ms);
+            if(button){
+                break;
+            }
         }
     }
     
     printf("End\n");
-
-
     return 0;
 }

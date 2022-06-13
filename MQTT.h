@@ -5,21 +5,21 @@
 #include "SocketAddress.h"
 #include "TCPSocket.h"
 
-#define MQTTCONNECT     1 << 4  // Client request to connect to Server
-#define MQTTCONNACK     2 << 4  // Connect Acknowledgment
-#define MQTTPUBLISH     3 << 4  // Publish message
-#define MQTTPUBACK      4 << 4  // Publish Acknowledgment
-#define MQTTPUBREC      5 << 4  // Publish Received (assured delivery part 1)
-#define MQTTPUBREL      6 << 4  // Publish Release (assured delivery part 2)
-#define MQTTPUBCOMP     7 << 4  // Publish Complete (assured delivery part 3)
-#define MQTTSUBSCRIBE   8 << 4  // Client Subscribe request
-#define MQTTSUBACK      9 << 4  // Subscribe Acknowledgment
-#define MQTTUNSUBSCRIBE 10 << 4 // Client Unsubscribe request
-#define MQTTUNSUBACK    11 << 4 // Unsubscribe Acknowledgment
-#define MQTTPINGREQ     12 << 4 // PING Request
-#define MQTTPINGRESP    13 << 4 // PING Response
-#define MQTTDISCONNECT  14 << 4 // Client is Disconnecting
-#define MQTTReserved    15 << 4 // Reserved
+#define MQTTCONNECT     0x10    // Client request to connect to Server
+#define MQTTCONNACK     0x20    // Connect Acknowledgment
+#define MQTTPUBLISH     0x30    // Publish message (QoS and DUP flags are set to 0)
+#define MQTTPUBACK      0x40    // Publish Acknowledgment
+#define MQTTPUBREC      0x50    // Publish Received (assured delivery part 1)
+#define MQTTPUBREL      0x62    // Publish Release (assured delivery part 2)
+#define MQTTPUBCOMP     0x70    // Publish Complete (assured delivery part 3)
+#define MQTTSUBSCRIBE   0x82    // Client Subscribe request
+#define MQTTSUBACK      0x90    // Subscribe Acknowledgment
+#define MQTTUNSUBSCRIBE 0xA2    // Client Unsubscribe request
+#define MQTTUNSUBACK    0xB0    // Unsubscribe Acknowledgment
+#define MQTTPINGREQ     0xC0    // PING Request
+#define MQTTPINGRESP    0xD0    // PING Response
+#define MQTTDISCONNECT  0xE0    // Client is Disconnecting
+#define MQTTReserved    0xF0     // Reserved
 
 class MQTTclient {
     private:
@@ -42,7 +42,7 @@ class MQTTclient {
     void receive_response();
     bool publish(const char* topic, const char* message);
     bool subscribe(const char* topic);
-    void ping();
+    uint32_t ping(uint64_t startTime);
     bool disconnect();
 };
 
