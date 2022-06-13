@@ -42,21 +42,29 @@ int main() {
     networkInfo(interface);
 
     SocketAddress address;
+    // resolve_hostname(interface, address, "broker.emqx.io");
+    // resolve_hostname(interface, address, "mqtt.flux.io");
+    // resolve_hostname(interface, address, "test.mosquitto.org");
+    // resolve_hostname(interface, address, "mqtt.flespi.io");
     // resolve_hostname(interface, address, "broker.hivemq.com");
-    address.set_ip_address("134.117.52.253\0");
+    // address.set_ip_address("134.117.52.253\0");
     address.set_port(1883);
 
     //Working till here
     MQTTclient client(interface, address);
 
     if(!client.MQTTinit()) {
-        printf("MQTT initialization failed!");
+        printf("MQTT initialization failed!\n");
         return 0;
     }
     
-    client.connect("ARSLAB");
+    if(client.connect("ARSLAB"/*, "qzAGoOCKkl8cXuw8Y4qDCeWExt34ZBLf09JcMaMWjJY61i5QdljDp57Mn1Fcqgfg"*/)) {
+        printf("Connection Successful\n");
+    }
 
-    client.subscribe("ARSLAB/Control");
+    if(client.subscribe("ARSLAB/Control")) {
+        printf("Subscription successful\n");
+    }
 
     // printf("Entering loop\n");
 
@@ -72,7 +80,7 @@ int main() {
         client.receive_response();
 
         if(button) {
-            client.ping(arduino::millis());
+            client.ping();
             ThisThread::sleep_for(500ms);
             if(button){
                 break;

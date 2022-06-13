@@ -36,47 +36,74 @@ bool MQTTclient::MQTTinit() {
 }
 
 bool MQTTclient::connect(const char* clientID) {
-    return connect(NULL, NULL, clientID);
+    return connect(clientID, NULL, NULL);
 }
 
-bool MQTTclient::connect(const char* username, const char* password, const char* clientID) { //implement usrname and password
+bool MQTTclient::connect(const char* clientID, const char* username) {
+    return connect(clientID, username, NULL);
+}
+
+bool MQTTclient::connect( const char* clientID, const char* username, const char* password) { //implement usrname and password
     
     //uint8_t buffer[] = {0x10, 0x12, 0x00, 0x04, 'M', 'Q', 'T', 'T', 0x04, 0x02, 0x00, 0x3C, 0x00, 0x06, 'A', 'R', 'S', 'L', 'A', 'B'};
+
+    uint8_t CONNECTFLAG = 0;
+
+    if(username) {
+        if(password) {
+            CONNECTFLAG = 0xC2;
+        } else {
+            CONNECTFLAG = 0x82;
+        }
+    } else {
+        CONNECTFLAG = 0x02;
+    }
     
-    uint8_t variable[10] = {0x00, 0x04, 'M', 'Q', 'T', 'T', 0x04, 0x02, 0x00, 0x3C};
+    uint8_t variable[10] = {0x00, 0x04, 'M', 'Q', 'T', 'T', 0x04, CONNECTFLAG, 0x00, 0x3C};
 
     uint8_t payload[128];
-    payload[0] = (uint8_t) (((uint16_t) strlen(clientID) & 0xFF00) >> 8);
-    payload[1] = (uint8_t) ((uint16_t) strlen(clientID) & 0x00FF);
+    unsigned int index = 0;
+
+    payload[index++] = (uint8_t) (((uint16_t) strlen(clientID) & 0xFF00) >> 8);
+    payload[index++] = (uint8_t) ((uint16_t) strlen(clientID) & 0x00FF);
 
     for(int i = 0; i < strlen(clientID); i++) {
-        payload[i + 2] = clientID[i];
+        payload[index++] = clientID[i];
     }
 
+    if(username) {
+        payload[index++] = (uint8_t) (((uint16_t) strlen(username) & 0xFF00) >> 8);
+        payload[index++] = (uint8_t) ((uint16_t) strlen(username) & 0x00FF);
+
+        for(int i = 0; i < strlen(username); i++) {
+            payload[index++] = username[i];
+        }
+    }
+
+    if(password) {
+        payload[index++] = (uint8_t) (((uint16_t) strlen(password) & 0xFF00) >> 8);
+        payload[index++] = (uint8_t) ((uint16_t) strlen(password) & 0x00FF);
+
+        for(int i = 0; i < strlen(password); i++) {
+            payload[index++] = password[i];
+        }
+    }
     //Fixed header
 
-    uint8_t fixed[2] = {(uint8_t)MQTTCONNECT, (uint8_t) (sizeof(variable) + strlen(clientID) + 2)};
+    uint8_t fixed[2] = {(uint8_t)MQTTCONNECT, (uint8_t) (sizeof(variable) + index)};
 
-    nsapi_size_t bytes_to_send = sizeof(variable) + strlen(clientID) + 4;
+    nsapi_size_t bytes_to_send = sizeof(fixed) + sizeof(variable) + index;
     // printf("Size of packet is: %d\n", index);
 
-    int index = 0;
     uint8_t buffer[128];
 
     for(int i = 0; i < bytes_to_send; i++) {
         if(i < 2) {
-            buffer[i] = fixed[index++];
+            buffer[i] = fixed[i];
         } else if(i >= 2 && i < 12) {
-            if(i == 2) {
-                index = 0;
-            }
-            buffer[i] = variable[index++];
+            buffer[i] = variable[i - 2];
         } else if(i >= 12) {
-            if(i == 12) {
-                index = 0;
-            }
-
-            buffer[i] = payload[index++];
+            buffer[i] = payload[i - 12];
         }
     }
     
@@ -85,25 +112,33 @@ bool MQTTclient::connect(const char* username, const char* password, const char*
         printf("Send failed! Error: %d", _result);
     } else {
         // printf("sent %d bytes\r\n", _result);
-        printf("Connected\r\n");
     }
-    
-    receive_response();
 
-    printf("Connection sucessful\n");
-    return true;
+    uint32_t time = us_ticker_read()/1000;
+    
+    while(((us_ticker_read()/1000) - time) < 5000){
+        if(receive_response(MQTTCONNACK)) {
+            return true;
+        }
+    }
+
+    return false;
 }
 
-void MQTTclient::receive_response() {
+bool MQTTclient::receive_response() {
+    return receive_response(NULL);
+}
+
+bool MQTTclient::receive_response(uint8_t check) {
     uint8_t buffer[128];
 
     _result = this->_socket.recv(buffer, 128);
     if (_result < 0) {
         if(_result == -3001) {
-            return;
+            return false;
         } else {
             printf("Error! _socket.recv() returned: %d\n", _result);
-            return;
+            return false;
         }
         
     }
@@ -134,17 +169,24 @@ void MQTTclient::receive_response() {
         strcpy(this->_global._payload,  (const char*) tempBuff);
 
         printf("Message: %s received on topic: %s\n", this->_global._payload, this->_global._topic);
-    } else if(buffer[0] == MQTTCONNACK) {
-        printf("CONNACK Recieved!\n");
-    } else if(buffer[0] == MQTTSUBACK) {
-        printf("SUBACK Recieved!\n");
-    }else {
+        return true;
+    } else if(check) {
+        if(buffer[0] == check) {
+            return true;
+            printf("Match");
+        } else {
+            return false;
+            printf("No Match");
+        }
+    } else {
         printf("received %d bytes: ", _result);
         for(int i = 0; i < _result; i++) {
             printf("0x%02X, ", (unsigned int) buffer[i]);
         }
         printf("\n");
+        return true;
     }
+    return false;
 }
 
 bool MQTTclient::publish(const char* topic, const char* message) {
@@ -236,10 +278,15 @@ bool MQTTclient::subscribe(const char* topic) {
     }
     // printf("sent %d bytes\n", _result);
 
-    receive_response();
+    uint32_t time = us_ticker_read()/1000;
+    
+    while(((us_ticker_read()/1000) - time) < 5000){
+        if(receive_response(MQTTSUBACK)) {
+            return true;
+        }
+    }
 
-    printf("Subscribed\n");
-    return true;
+    return false;
 }
 
 bool MQTTclient::disconnect() {
@@ -263,24 +310,16 @@ bool MQTTclient::disconnect() {
 
 }
 
-uint32_t MQTTclient::ping(uint64_t startTime) {
+uint32_t MQTTclient::ping() {
     uint8_t buffer[] = {0xC0, 0x00};
     _socket.send(buffer, 2);
 
-    while(buffer[0] != MQTTPINGRESP){
+    int time = us_ticker_read()/1000;
+    while((buffer[0] != MQTTPINGRESP)){
         _result = this->_socket.recv(buffer, 2);
-        if (_result < 0) {
-            if(_result == -3001) {
-                //Do Nothing
-            } else {
-                printf("Error! _socket.recv() returned: %d\n", _result);
-                return 0;
-            }
-            
-        }
     }
 
-    uint32_t latency = us_ticker_read()/1000 - startTime;
+    uint32_t latency = us_ticker_read()/1000 - time;
     printf("Ping: %"PRIu32"ms\n", latency);
     return latency;
 }

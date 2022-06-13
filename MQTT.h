@@ -37,12 +37,14 @@ class MQTTclient {
     MQTTclient(NetworkInterface*, SocketAddress);
     ~MQTTclient();
     bool MQTTinit();
-    bool connect(const char* username, const char* password, const char* clientID);
-    bool connect(const char* clientID);
-    void receive_response();
-    bool publish(const char* topic, const char* message);
-    bool subscribe(const char* topic);
-    uint32_t ping(uint64_t startTime);
+    bool connect(const char* , const char* , const char*);
+    bool connect(const char* , const char*);
+    bool connect(const char*);
+    bool receive_response();
+    bool receive_response(uint8_t);
+    bool publish(const char* , const char*);
+    bool subscribe(const char*);
+    uint32_t ping();
     bool disconnect();
 };
 
