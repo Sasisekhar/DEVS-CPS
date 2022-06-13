@@ -43,7 +43,6 @@ bool MQTTclient::connect(const char* username, const char* password, const char*
     
     //uint8_t buffer[] = {0x10, 0x12, 0x00, 0x04, 'M', 'Q', 'T', 'T', 0x04, 0x02, 0x00, 0x3C, 0x00, 0x06, 'A', 'R', 'S', 'L', 'A', 'B'};
     
-
     uint8_t variable[10] = {0x00, 0x04, 'M', 'Q', 'T', 'T', 0x04, 0x02, 0x00, 0x3C};
 
     uint8_t payload[128];
@@ -191,11 +190,11 @@ bool MQTTclient::publish(const char* topic, const char* message) {
         }
     }
 
-    nsapi_size_t bytes_to_send = sizeof(buffer);
+    nsapi_size_t bytes_to_send = index + 2;
     // printf("Size of packet is: %d\n", bytes_to_send);
-    nsapi_size_or_error_t bytes_sent = 0;
 
     _result = _socket.send(buffer, bytes_to_send);
+
     if(_result < 0) {
         printf("Publish failed! Error: %d", _result);
         return false;
@@ -235,10 +234,10 @@ bool MQTTclient::subscribe(const char* topic) {
         }
     }
 
-    nsapi_size_t bytes_to_send = sizeof(buffer);
-    // printf("Size of packet is: %d\n", sizeof(buffer));
+    nsapi_size_t bytes_to_send = (index + 4);
+    // printf("Size of packet is: %d\n", bytes_to_send);
 
-    _result = _socket.send(buffer, sizeof(buffer));
+    _result = _socket.send(buffer, bytes_to_send);
     if(_result < 0) {
         printf("Subscription unsuccessful! Error: %d\n", _result);;
         return false;

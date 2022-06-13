@@ -8,17 +8,15 @@ namespace arduino{
     }
 }
 
-void resolve_hostname(NetworkInterface *interface, SocketAddress &address) {
-    const char hostname[] = "broker.hivemq.com";
-
+void resolve_hostname(NetworkInterface *interface, SocketAddress &address, const char* url) {
     /* get the host address */
-    printf("\nResolve hostname %s\r\n", hostname);
-    nsapi_size_or_error_t result = interface->gethostbyname(hostname, &address);
+    printf("\nResolve hostname %s\r\n", url);
+    nsapi_size_or_error_t result = interface->gethostbyname(url, &address);
     if (result != 0) {
-        printf("Error! gethostbyname(%s) returned: %d\r\n", hostname, result);
+        printf("Error! gethostbyname(%s) returned: %d\r\n", url, result);
     }
 
-    printf("%s address is %s\r\n", hostname, (address.get_ip_address() ? address.get_ip_address() : "None") );
+    printf("%s address is %s\r\n", url, (address.get_ip_address() ? address.get_ip_address() : "None") );
 }
 
 void networkInfo(NetworkInterface *interface) {
@@ -43,7 +41,7 @@ int main() {
     networkInfo(interface);
 
     SocketAddress address;
-    //resolve_hostname(network::address);
+    //resolve_hostname(interface, address, broker.hivemq.com);
     address.set_ip_address("134.117.52.253\0");
     address.set_port(1883);
 
