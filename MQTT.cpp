@@ -14,6 +14,11 @@
 MQTTclient::MQTTclient(NetworkInterface *interface, SocketAddress address) {
     _interface = interface;
     _address =  address;
+    _connect_status = false;
+}
+
+bool MQTTclient::connected() {
+    return _connect_status;
 }
 
 bool MQTTclient::MQTTinit() {
@@ -47,82 +52,91 @@ bool MQTTclient::connect( const char* clientID, const char* username, const char
     
     //uint8_t buffer[] = {0x10, 0x12, 0x00, 0x04, 'M', 'Q', 'T', 'T', 0x04, 0x02, 0x00, 0x3C, 0x00, 0x06, 'A', 'R', 'S', 'L', 'A', 'B'};
 
-    uint8_t CONNECTFLAG = 0;
+    if(!_connect_status) {
+        if(!MQTTinit()) {
+            printf("TCP socket initialization failed!\n");
+        }
+        printf("Connecting...");
+        uint8_t CONNECTFLAG = 0;
 
-    if(username) {
-        if(password) {
-            CONNECTFLAG = 0xC2;
+        if(username) {
+            if(password) {
+                CONNECTFLAG = 0xC2;
+            } else {
+                CONNECTFLAG = 0x82;
+            }
         } else {
-            CONNECTFLAG = 0x82;
+            CONNECTFLAG = 0x02;
         }
+        
+        uint8_t variable[10] = {0x00, 0x04, 'M', 'Q', 'T', 'T', 0x04, CONNECTFLAG, 0x00, 0x3C};
+
+        uint8_t payload[128];
+        unsigned int index = 0;
+
+        payload[index++] = (uint8_t) (((uint16_t) strlen(clientID) & 0xFF00) >> 8);
+        payload[index++] = (uint8_t) ((uint16_t) strlen(clientID) & 0x00FF);
+
+        for(int i = 0; i < strlen(clientID); i++) {
+            payload[index++] = clientID[i];
+        }
+
+        if(username) {
+            payload[index++] = (uint8_t) (((uint16_t) strlen(username) & 0xFF00) >> 8);
+            payload[index++] = (uint8_t) ((uint16_t) strlen(username) & 0x00FF);
+
+            for(int i = 0; i < strlen(username); i++) {
+                payload[index++] = username[i];
+            }
+        }
+
+        if(password) {
+            payload[index++] = (uint8_t) (((uint16_t) strlen(password) & 0xFF00) >> 8);
+            payload[index++] = (uint8_t) ((uint16_t) strlen(password) & 0x00FF);
+
+            for(int i = 0; i < strlen(password); i++) {
+                payload[index++] = password[i];
+            }
+        }
+        //Fixed header
+
+        uint8_t fixed[2] = {(uint8_t)MQTTCONNECT, (uint8_t) (sizeof(variable) + index)};
+
+        nsapi_size_t bytes_to_send = sizeof(fixed) + sizeof(variable) + index;
+        // printf("Size of packet is: %d\n", index);
+
+        uint8_t buffer[128];
+
+        for(int i = 0; i < bytes_to_send; i++) {
+            if(i < 2) {
+                buffer[i] = fixed[i];
+            } else if(i >= 2 && i < 12) {
+                buffer[i] = variable[i - 2];
+            } else if(i >= 12) {
+                buffer[i] = payload[i - 12];
+            }
+        }
+        
+        _result = _socket.send(buffer, bytes_to_send);
+        if(_result < 0) {
+            printf("Send failed! Error: %d", _result);
+        } else {
+            // printf("sent %d bytes\r\n", _result);
+        }
+
+        uint32_t time = us_ticker_read()/1000;
+        
+        while(((us_ticker_read()/1000) - time) < 5000){
+            if(receive_response(MQTTCONNACK)) {
+                _connect_status = true;
+                return true;
+            }
+        }
+
+        return false;
     } else {
-        CONNECTFLAG = 0x02;
+        return true;
     }
-    
-    uint8_t variable[10] = {0x00, 0x04, 'M', 'Q', 'T', 'T', 0x04, CONNECTFLAG, 0x00, 0x3C};
-
-    uint8_t payload[128];
-    unsigned int index = 0;
-
-    payload[index++] = (uint8_t) (((uint16_t) strlen(clientID) & 0xFF00) >> 8);
-    payload[index++] = (uint8_t) ((uint16_t) strlen(clientID) & 0x00FF);
-
-    for(int i = 0; i < strlen(clientID); i++) {
-        payload[index++] = clientID[i];
-    }
-
-    if(username) {
-        payload[index++] = (uint8_t) (((uint16_t) strlen(username) & 0xFF00) >> 8);
-        payload[index++] = (uint8_t) ((uint16_t) strlen(username) & 0x00FF);
-
-        for(int i = 0; i < strlen(username); i++) {
-            payload[index++] = username[i];
-        }
-    }
-
-    if(password) {
-        payload[index++] = (uint8_t) (((uint16_t) strlen(password) & 0xFF00) >> 8);
-        payload[index++] = (uint8_t) ((uint16_t) strlen(password) & 0x00FF);
-
-        for(int i = 0; i < strlen(password); i++) {
-            payload[index++] = password[i];
-        }
-    }
-    //Fixed header
-
-    uint8_t fixed[2] = {(uint8_t)MQTTCONNECT, (uint8_t) (sizeof(variable) + index)};
-
-    nsapi_size_t bytes_to_send = sizeof(fixed) + sizeof(variable) + index;
-    // printf("Size of packet is: %d\n", index);
-
-    uint8_t buffer[128];
-
-    for(int i = 0; i < bytes_to_send; i++) {
-        if(i < 2) {
-            buffer[i] = fixed[i];
-        } else if(i >= 2 && i < 12) {
-            buffer[i] = variable[i - 2];
-        } else if(i >= 12) {
-            buffer[i] = payload[i - 12];
-        }
-    }
-    
-    _result = _socket.send(buffer, bytes_to_send);
-    if(_result < 0) {
-        printf("Send failed! Error: %d", _result);
-    } else {
-        // printf("sent %d bytes\r\n", _result);
-    }
-
-    uint32_t time = us_ticker_read()/1000;
-    
-    while(((us_ticker_read()/1000) - time) < 5000){
-        if(receive_response(MQTTCONNACK)) {
-            return true;
-        }
-    }
-
-    return false;
 }
 
 bool MQTTclient::receive_response() {
@@ -138,6 +152,8 @@ bool MQTTclient::receive_response(uint8_t check) {
             return false;
         } else {
             printf("Error! _socket.recv() returned: %d\n", _result);
+            _connect_status = false;
+
             return false;
         }
         
@@ -193,50 +209,52 @@ bool MQTTclient::publish(const char* topic, const char* message) {
     
     //uint8_t buffer[] = {0x30, 0x12, 0x00, 0x04, 'T', 'E', 'S', 'T', 0x00, 0x0A, 'S', 'A', 'S', 'I', 'S', 'E', 'K', 'H', 'A', 'R'};
 
-    uint8_t variable[128];
+    if(_connect_status) {
+        uint8_t variable[128];
 
-    uint8_t index = 0;
+        uint8_t index = 0;
 
-    variable[index++] = (uint8_t) (((uint16_t) strlen(topic) & 0xFF00) >> 8);
-    variable[index++] = (uint8_t) ((uint16_t) strlen(topic) & 0x00FF);
+        variable[index++] = (uint8_t) (((uint16_t) strlen(topic) & 0xFF00) >> 8);
+        variable[index++] = (uint8_t) ((uint16_t) strlen(topic) & 0x00FF);
 
-    for(int i = 0; i < strlen(topic); i++) {
-        variable[index++] = topic[i];
-    }
-
-    // variable[index++] = (uint8_t) (((uint16_t) strlen(message) & 0xFF00) >> 8);
-    // variable[index++] = (uint8_t) ((uint16_t) strlen(message) & 0x00FF);
-    
-    for(int i = 0; i < strlen(message); i++) {
-        variable[index++] = message[i];
-    }
-
-    uint8_t fixed[] = {MQTTPUBLISH, index};
-
-    uint8_t buffer[128];
-
-    for(int i = 0; i < index + 2; i++) {
-        if(i < 2) {
-            buffer[i] = fixed[i];
-        } else {
-            buffer[i] = variable[i - 2];
+        for(int i = 0; i < strlen(topic); i++) {
+            variable[index++] = topic[i];
         }
-    }
 
-    nsapi_size_t bytes_to_send = index + 2;
-    // printf("Size of packet is: %d\n", bytes_to_send);
+        for(int i = 0; i < strlen(message); i++) {
+            variable[index++] = message[i];
+        }
 
-    _result = _socket.send(buffer, bytes_to_send);
+        uint8_t fixed[] = {MQTTPUBLISH, index};
 
-    if(_result < 0) {
-        printf("Publish failed! Error: %d", _result);
-        return false;
+        uint8_t buffer[128];
+
+        for(int i = 0; i < index + 2; i++) {
+            if(i < 2) {
+                buffer[i] = fixed[i];
+            } else {
+                buffer[i] = variable[i - 2];
+            }
+        }
+
+        nsapi_size_t bytes_to_send = index + 2;
+        // printf("Size of packet is: %d\n", bytes_to_send);
+
+        _result = _socket.send(buffer, bytes_to_send);
+
+        if(_result < 0) {
+            printf("Publish failed! Error: %d", _result);
+            return false;
+        } else {
+            // printf("sent %d bytes\r\n", _result);
+            // printf("Published\n");
+        }
+
+        return true;
     } else {
-        // printf("sent %d bytes\r\n", _result);
-        // printf("Published\n");
+        printf("Client not connected\n");
+        return false;
     }
-
-    return true;
 }
 
 bool MQTTclient::subscribe(const char* topic) {
@@ -297,15 +315,14 @@ bool MQTTclient::disconnect() {
 
     _result = _socket.send(buffer, bytes_to_send);
     if(_result < 0) {
-        printf("Disconnect unsuccessful! Error:%d\n", _result);
-        return false;
+        printf("Broker Disconnect unsuccessful! Error:%d\n", _result);
     }
 
     _socket.close();
     _interface->disconnect();
 
     // printf("sent %d bytes\n", bytes_sent);
-    printf("Disconnected\n");
+    printf("Netwrok Disconnected\n");
     return true;
 
 }
@@ -315,7 +332,7 @@ uint32_t MQTTclient::ping() {
     _socket.send(buffer, 2);
 
     int time = us_ticker_read()/1000;
-    while((buffer[0] != MQTTPINGRESP)){
+    while((buffer[0] != MQTTPINGRESP) && (us_ticker_read()/1000 - time) <= 5000){
         _result = this->_socket.recv(buffer, 2);
     }
 

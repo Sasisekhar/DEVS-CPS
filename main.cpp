@@ -41,39 +41,49 @@ int main() {
     interface->connect();
     networkInfo(interface);
 
-    SocketAddress address;
-    // resolve_hostname(interface, address, "broker.emqx.io");
-    // resolve_hostname(interface, address, "mqtt.flux.io");
-    // resolve_hostname(interface, address, "test.mosquitto.org");
-    // resolve_hostname(interface, address, "mqtt.flespi.io");
-    // resolve_hostname(interface, address, "broker.hivemq.com");
-    // address.set_ip_address("134.117.52.253\0");
+    SocketAddress address, ntp;
+    
+    address.set_ip_address("134.117.52.253\0");
     address.set_port(1883);
 
-    //Working till here
     MQTTclient client(interface, address);
-
-    if(!client.MQTTinit()) {
-        printf("MQTT initialization failed!\n");
-        return 0;
-    }
     
-    if(client.connect("ARSLAB"/*, "qzAGoOCKkl8cXuw8Y4qDCeWExt34ZBLf09JcMaMWjJY61i5QdljDp57Mn1Fcqgfg"*/)) {
+    if(client.connect("ARSLAB")) {
         printf("Connection Successful\n");
     }
 
-    if(client.subscribe("ARSLAB/Control")) {
+    if(client.subscribe("ARSLAB/Control/AC")) {
         printf("Subscription successful\n");
     }
 
-    // printf("Entering loop\n");
+    if(client.subscribe("ARSLAB/Control/Door")) {
+        printf("Subscription successful\n");
+    }
+
+    if(client.subscribe("ARSLAB/Control/Light")) {
+        printf("Subscription successful\n");
+    }
 
     uint64_t startTime = 0;
-
     while (true) {
 
-        if(arduino::millis() -  startTime > 5000) {
-            client.publish("ARSLAB/Temperature", "23");
+        if(!client.connected()) {
+            client.disconnect();
+            if(client.connect("ARSLAB")) {
+                printf("Connection Successful\n");
+            }
+        }
+
+        if(arduino::millis() -  startTime > 500) {
+            int temp = rand()%50;
+            int hum = rand()%100;
+            int co2 = rand()%5000;
+
+            char buff[128];
+
+            sprintf(buff, "{\"Temp\":%d, \"Hum\":%d, \"CO2\":%d}", temp, hum, co2);
+
+            client.publish("ARSLAB/Data/Raw", buff);
             startTime = arduino::millis();
         }
 

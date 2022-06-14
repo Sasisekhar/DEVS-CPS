@@ -23,7 +23,8 @@
 
 class MQTTclient {
     private:
-    NetworkInterface *_interface;// = NetworkInterface::get_default_instance();
+    bool _connect_status;
+    NetworkInterface *_interface;
     TCPSocket _socket;
     SocketAddress _address;
     nsapi_size_or_error_t _result;
@@ -36,6 +37,7 @@ class MQTTclient {
     public:
     MQTTclient(NetworkInterface*, SocketAddress);
     ~MQTTclient();
+    bool connected();
     bool MQTTinit();
     bool connect(const char* , const char* , const char*);
     bool connect(const char* , const char*);
